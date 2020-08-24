@@ -1,52 +1,3 @@
- /*
-     Copyright (c) 2010, Daniel Hewlett, Antons Rebguns
-     All rights reserved.
- 
-     Redistribution and use in source and binary forms, with or without
-     modification, are permitted provided that the following conditions are met:
-         * Redistributions of source code must retain the above copyright
-         notice, this list of conditions and the following disclaimer.
-         * Redistributions in binary form must reproduce the above copyright
-         notice, this list of conditions and the following disclaimer in the
-         documentation and/or other materials provided with the distribution.
-         * Neither the name of the <organization> nor the
-         names of its contributors may be used to endorse or promote products
-         derived from this software without specific prior written permission.
- 
-     THIS SOFTWARE IS PROVIDED BY Antons Rebguns <email> ''AS IS'' AND ANY
-     EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-     WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-     DISCLAIMED. IN NO EVENT SHALL Antons Rebguns <email> BE LIABLE FOR ANY
-     DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-     (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-     LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
-     ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-     (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- 
- */
- 
- /*
-  * \file  gazebo_ros_diff_drive.cpp
-  *
-  * \brief A differential drive plugin for gazebo. Based on the diffdrive plugin
-  * developed for the erratic robot (see copyright notice above). The original
-  * plugin can be found in the ROS package gazebo_erratic_plugins.
-  *
-  * \author  Piyush Khandelwal (piyushk@gmail.com)
-  *
-  * $ Id: 06/21/2013 11:23:40 AM piyushk $
-  */
- 
- 
- /*
-  *
-  * The support of acceleration limit was added by
-  * \author   George Todoran <todorangrg@gmail.com>
-  * \author   Markus Bader <markus.bader@tuwien.ac.at>
-  * \date 22th of May 2014
-  */
- 
 #include <algorithm>
 #include <assert.h>
  
@@ -64,8 +15,10 @@ namespace gazebo
 {
  
 enum {
-    RIGHT,
-    LEFT,
+    RIGHT_FRONT,
+    LEFT_FRONT,
+    RIGHT_BACK,
+    LEFT_BACK
 };
  
 GazeboRosDiffDrive::GazeboRosDiffDrive() {}
@@ -93,10 +46,10 @@ void GazeboRosDiffDrive::Load ( physics::ModelPtr _parent, sdf::ElementPtr _sdf 
     gazebo_ros_->getParameterBoolean ( publishOdomTF_, "publishOdomTF", true);
     gazebo_ros_->getParameterBoolean ( publishWheelJointState_, "publishWheelJointState", false );
     gazebo_ros_->getParameter<double> ( wheel_separation_, "wheelSeparation", 0.34 );
-    gazebo_ros_->getParameter<double> ( wheel_diameter_, "wheelDiameter", 0.15 );
+    gazebo_ros_->getParameter<double> ( wheel_diameter_, "wheelDiameter", 0.13 );
     gazebo_ros_->getParameter<double> ( wheel_accel, "wheelAcceleration", 0.0 );
     gazebo_ros_->getParameter<double> ( wheel_torque, "wheelTorque", 5.0 );
-    gazebo_ros_->getParameter<double> ( update_rate_, "updateRate", 100.0 );
+    gazebo_ros_->getParameter<double> ( update_rate_, "updateRate", 50.0 );
     std::map<std::string, OdomSource> odomOptions;
     odomOptions["encoder"] = ENCODER;
     odomOptions["world"] = WORLD;
@@ -104,12 +57,14 @@ void GazeboRosDiffDrive::Load ( physics::ModelPtr _parent, sdf::ElementPtr _sdf 
 
 
     joints_.resize ( 2 );
-    joints_[LEFT] = gazebo_ros_->getJoint ( parent, "leftJoint", "left_joint" );
-    joints_[RIGHT] = gazebo_ros_->getJoint ( parent, "rightJoint", "right_joint" );
-    joints_[LEFT]->SetParam ( "fmax", 0, wheel_torque );
-    joints_[RIGHT]->SetParam ( "fmax", 0, wheel_torque );
- 
- 
+    joints_[LEFT_FRONT] = gazebo_ros_->getJoint ( parent, "left_front_Joint", "left_front_joint" );
+    joints_[RIGHT_FRONT] = gazebo_ros_->getJoint ( parent, "right_front_Joint", "right_front_joint" );
+    joints_[LEFT_BACK] = gazebo_ros_->getJoint ( parent, "left_back_Joint", "left_back_joint" );
+    joints_[RIGHT_BACK] = gazebo_ros_->getJoint ( parent, "right_back_Joint", "right_back_joint" );
+    joints_[LEFT_FRONT]->SetParam ( "fmax", 0, wheel_torque );
+    joints_[RIGHT_FRONT]->SetParam ( "fmax", 0, wheel_torque );
+    joints_[LEFT_BACK]->SetParam ( "fmax", 0, wheel_torque );
+    joints_[RIGHT_BACK]->SetParam ( "fmax", 0, wheel_torque );
  
     this->publish_tf_ = true;
     if (!_sdf->HasElement("publishTf")) {
@@ -129,12 +84,16 @@ void GazeboRosDiffDrive::Load ( physics::ModelPtr _parent, sdf::ElementPtr _sdf 
 #endif
  
     // Initialize velocity stuff
-    wheel_speed_[RIGHT] = 0;
-    wheel_speed_[LEFT] = 0;
+    wheel_speed_[RIGHT_FRONT] = 0;
+    wheel_speed_[LEFT_FRONT] = 0;
+    wheel_speed_[RIGHT_BACK] = 0;
+    wheel_speed_[LEFT_BACK] = 0;
  
     // Initialize velocity support stuff
-    wheel_speed_instr_[RIGHT] = 0;
-    wheel_speed_instr_[LEFT] = 0;
+    wheel_speed_instr_[RIGHT_FRONT] = 0;
+    wheel_speed_instr_[LEFT_FRONT] = 0;
+    wheel_speed_instr_[RIGHT_BACK] = 0;
+    wheel_speed_instr_[LEFT_BACK] = 0;
 
     x_ = 0;
     rot_ = 0;
@@ -187,6 +146,7 @@ void GazeboRosDiffDrive::Reset()
   pose_encoder_.y = 0;
   pose_encoder_.theta = 0;
   x_ = 0;
+  y_ = 0;
   rot_ = 0;
   joints_[LEFT]->SetParam ( "fmax", 0, wheel_torque );
   joints_[RIGHT]->SetParam ( "fmax", 0, wheel_torque );
@@ -200,7 +160,7 @@ void GazeboRosDiffDrive::publishWheelJointState()
     joint_state_.name.resize ( joints_.size() );
     joint_state_.position.resize ( joints_.size() );
 
-    for ( int i = 0; i < 2; i++ ) {
+    for ( int i = 0; i < 4; i++ ) {
         physics::JointPtr joint = joints_[i];
 #if GAZEBO_MAJOR_VERSION >= 8
         double position = joint->Position ( 0 );
@@ -216,7 +176,7 @@ void GazeboRosDiffDrive::publishWheelJointState()
 void GazeboRosDiffDrive::publishWheelTF()
 {
     ros::Time current_time = ros::Time::now();
-    for ( int i = 0; i < 2; i++ ) {
+    for ( int i = 0; i < 4; i++ ) {
 
         std::string wheel_frame = gazebo_ros_->resolveTF(joints_[i]->GetChild()->GetName ());
         std::string wheel_parent_frame = gazebo_ros_->resolveTF(joints_[i]->GetParent()->GetName ());
@@ -246,7 +206,7 @@ void GazeboRosDiffDrive::UpdateChild()
        and Joint::Reset is called after ModelPlugin::Reset, so we need to set maxForce to wheel_torque other than GazeboRosDiffDrive::Reset
        (this seems to be solved in https://bitbucket.org/osrf/gazebo/commits/ec8801d8683160eccae22c74bf865d59fac81f1e)
     */
-    for ( int i = 0; i < 2; i++ ) {
+    for ( int i = 0; i < 4; i++ ) {
       if ( fabs(wheel_torque -joints_[i]->GetParam ( "fmax", 0 )) > 1e-6 ) {
         joints_[i]->SetParam ( "fmax", 0, wheel_torque );
       }
@@ -269,33 +229,51 @@ void GazeboRosDiffDrive::UpdateChild()
         // Update robot in case new velocities have been requested
         getWheelVelocities();
 
-        double current_speed[2];
+        double current_speed[4];
 
-        current_speed[LEFT] = joints_[LEFT]->GetVelocity ( 0 )   * ( wheel_diameter_ / 2.0 );
-        current_speed[RIGHT] = joints_[RIGHT]->GetVelocity ( 0 ) * ( wheel_diameter_ / 2.0 );
+        current_speed[LEFT_FRONT] = joints_[LEFT_FRONT]->GetVelocity ( 0 )   * ( wheel_diameter_ / 2.0 );
+        current_speed[RIGHT_FRONT] = joints_[RIGHT_FRONT]->GetVelocity ( 0 ) * ( wheel_diameter_ / 2.0 );
+        current_speed[LEFT_BACK] = joints_[LEFT_BACK]->GetVelocity ( 0 )   * ( wheel_diameter_ / 2.0 );
+        current_speed[RIGHT_BACK] = joints_[RIGHT_BACK]->GetVelocity ( 0 ) * ( wheel_diameter_ / 2.0 );
 
         if ( wheel_accel == 0 ||
-                ( fabs ( wheel_speed_[LEFT] - current_speed[LEFT] ) < 0.01 ) ||
-                ( fabs ( wheel_speed_[RIGHT] - current_speed[RIGHT] ) < 0.01 ) ) {
+                ( fabs ( wheel_speed_[LEFT_FRONT] - current_speed[LEFT_FRONT] ) < 0.01 ) ||
+                ( fabs ( wheel_speed_[RIGHT_FRONT] - current_speed[RIGHT_FRONT] ) < 0.01 ) ||
+                ( fabs ( wheel_speed_[LEFT_BACK] - current_speed[LEFT_BACK] ) < 0.01 )     ||
+                ( fabs ( wheel_speed_[RIGHT_BACK] - current_speed[RIGHT_BACK] ) < 0.01 ) ) {
            //if max_accel == 0, or target speed is reached
-            joints_[LEFT]->SetParam ( "vel", 0, wheel_speed_[LEFT]/ ( wheel_diameter_ / 2.0 ) );
-            joints_[RIGHT]->SetParam ( "vel", 0, wheel_speed_[RIGHT]/ ( wheel_diameter_ / 2.0 ) );
+            joints_[LEFT_FRONT]->SetParam ( "vel", 0, wheel_speed_[LEFT_FRONT]/ ( wheel_diameter_ / 2.0 ) );
+            joints_[RIGHT_FRONT]->SetParam ( "vel", 0, wheel_speed_[RIGHT_FRONT]/ ( wheel_diameter_ / 2.0 ) );
+            joints_[LEFT_BACK]->SetParam ( "vel", 0, wheel_speed_[LEFT_BACK]/ ( wheel_diameter_ / 2.0 ) );
+            joints_[RIGHT_BACK]->SetParam ( "vel", 0, wheel_speed_[RIGHT_BACK]/ ( wheel_diameter_ / 2.0 ) );
         } else {
-            if ( wheel_speed_[LEFT]>=current_speed[LEFT] )
-                wheel_speed_instr_[LEFT]+=fmin ( wheel_speed_[LEFT]-current_speed[LEFT],  wheel_accel * seconds_since_last_update );
+            if ( wheel_speed_[LEFT_FRONT]>=current_speed[LEFT_FRONT] )
+                wheel_speed_instr_[LEFT_FRONT]+=fmin ( wheel_speed_[LEFT_FRONT]-current_speed[LEFT_FRONT],  wheel_accel * seconds_since_last_update );
             else
-                wheel_speed_instr_[LEFT]+=fmax ( wheel_speed_[LEFT]-current_speed[LEFT], -wheel_accel * seconds_since_last_update );
+                wheel_speed_instr_[LEFT_FRONT]+=fmax ( wheel_speed_[LEFT_FRONT]-current_speed[LEFT_FRONT], -wheel_accel * seconds_since_last_update );
 
-            if ( wheel_speed_[RIGHT]>current_speed[RIGHT] )
-                wheel_speed_instr_[RIGHT]+=fmin ( wheel_speed_[RIGHT]-current_speed[RIGHT], wheel_accel * seconds_since_last_update );
+            if ( wheel_speed_[RIGHT_FRONT]>current_speed[RIGHT_FRONT] )
+                wheel_speed_instr_[RIGHT_FRONT]+=fmin ( wheel_speed_[RIGHT_FRONT]-current_speed[RIGHT_FRONT], wheel_accel * seconds_since_last_update );
             else
-                wheel_speed_instr_[RIGHT]+=fmax ( wheel_speed_[RIGHT]-current_speed[RIGHT], -wheel_accel * seconds_since_last_update );
+                wheel_speed_instr_[RIGHT_FRONT]+=fmax ( wheel_speed_[RIGHT_FRONT]-current_speed[RIGHT_FRONT], -wheel_accel * seconds_since_last_update );
+
+            if ( wheel_speed_[LEFT_BACK]>=current_speed[LEFT_BACK] )
+                wheel_speed_instr_[LEFT_BACK]+=fmin ( wheel_speed_[LEFT_BACK]-current_speed[LEFT_BACK],  wheel_accel * seconds_since_last_update );
+            else
+                wheel_speed_instr_[LEFT_BACK]+=fmax ( wheel_speed_[LEFT_BACK]-current_speed[LEFT_BACK], -wheel_accel * seconds_since_last_update );
+
+            if ( wheel_speed_[RIGHT_BACK]>current_speed[RIGHT_BACK] )
+                wheel_speed_instr_[RIGHT_BACK]+=fmin ( wheel_speed_[RIGHT_BACK]-current_speed[RIGHT_BACK], wheel_accel * seconds_since_last_update );
+            else
+                wheel_speed_instr_[RIGHT_BACK]+=fmax ( wheel_speed_[RIGHT_BACK]-current_speed[RIGHT_BACK], -wheel_accel * seconds_since_last_update );
 
             // ROS_INFO_NAMED("diff_drive", "actual wheel speed = %lf, issued wheel speed= %lf", current_speed[LEFT], wheel_speed_[LEFT]);
             // ROS_INFO_NAMED("diff_drive", "actual wheel speed = %lf, issued wheel speed= %lf", current_speed[RIGHT],wheel_speed_[RIGHT]);
  
-            joints_[LEFT]->SetParam ( "vel", 0, wheel_speed_instr_[LEFT] / ( wheel_diameter_ / 2.0 ) );
-            joints_[RIGHT]->SetParam ( "vel", 0, wheel_speed_instr_[RIGHT] / ( wheel_diameter_ / 2.0 ) );
+            joints_[LEFT_FRONT]->SetParam ( "vel", 0, wheel_speed_instr_[LEFT_FRONT] / ( wheel_diameter_ / 2.0 ) );
+            joints_[RIGHT_FRONT]->SetParam ( "vel", 0, wheel_speed_instr_[RIGHT_FRONT] / ( wheel_diameter_ / 2.0 ) );
+            joints_[LEFT_BACK]->SetParam ( "vel", 0, wheel_speed_instr_[LEFT_BACK] / ( wheel_diameter_ / 2.0 ) );
+            joints_[RIGHT_BACK]->SetParam ( "vel", 0, wheel_speed_instr_[RIGHT_BACK] / ( wheel_diameter_ / 2.0 ) );
         }
         last_update_time_+= common::Time ( update_period_ );
     }
@@ -318,14 +296,17 @@ void GazeboRosDiffDrive::getWheelVelocities()
     double vr = x_;
     double va = rot_;
 
-    wheel_speed_[LEFT] = vr - va * wheel_separation_ / 2.0;
-    wheel_speed_[RIGHT] = vr + va * wheel_separation_ / 2.0;
+    wheel_speed_[LEFT_FRONT] = vr - va * wheel_separation_ / 2.0;
+    wheel_speed_[RIGHT_FRONT] = vr + va * wheel_separation_ / 2.0;
+    wheel_speed_[LEFT_BACK] = vr - va * wheel_separation_ / 2.0;
+    wheel_speed_[RIGHT_BACK] = vr + va * wheel_separation_ / 2.0;
 }
  
 void GazeboRosDiffDrive::cmdVelCallback ( const geometry_msgs::Twist::ConstPtr& cmd_msg )
 {
     boost::mutex::scoped_lock scoped_lock ( lock );
     x_ = cmd_msg->linear.x;
+    y_ = cmd_msg->linear.y;
     rot_ = cmd_msg->angular.z;
 }
 
