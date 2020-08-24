@@ -45,7 +45,7 @@ void GazeboRosDiffDrive::Load ( physics::ModelPtr _parent, sdf::ElementPtr _sdf 
     gazebo_ros_->getParameterBoolean ( publishWheelTF_, "publishWheelTF", false );
     gazebo_ros_->getParameterBoolean ( publishOdomTF_, "publishOdomTF", true);
     gazebo_ros_->getParameterBoolean ( publishWheelJointState_, "publishWheelJointState", false );
-    gazebo_ros_->getParameter<double> ( wheel_separation_, "wheelSeparation", 0.34 );
+    gazebo_ros_->getParameter<double> ( wheel_separation_, "wheelSeparation", 0.6 );
     gazebo_ros_->getParameter<double> ( wheel_diameter_, "wheelDiameter", 0.13 );
     gazebo_ros_->getParameter<double> ( wheel_accel, "wheelAcceleration", 0.0 );
     gazebo_ros_->getParameter<double> ( wheel_torque, "wheelTorque", 5.0 );
