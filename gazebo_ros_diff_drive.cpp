@@ -56,7 +56,7 @@ void GazeboRosDiffDrive::Load ( physics::ModelPtr _parent, sdf::ElementPtr _sdf 
     gazebo_ros_->getParameter<OdomSource> ( odom_source_, "odometrySource", odomOptions, WORLD );
 
 
-    joints_.resize ( 2 );
+    joints_.resize ( 4 );
     joints_[LEFT_FRONT] = gazebo_ros_->getJoint ( parent, "left_front_Joint", "left_front_joint" );
     joints_[RIGHT_FRONT] = gazebo_ros_->getJoint ( parent, "right_front_Joint", "right_front_joint" );
     joints_[LEFT_BACK] = gazebo_ros_->getJoint ( parent, "left_back_Joint", "left_back_joint" );
