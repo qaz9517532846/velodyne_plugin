@@ -148,8 +148,10 @@ void GazeboRosDiffDrive::Reset()
   x_ = 0;
   y_ = 0;
   rot_ = 0;
-  joints_[LEFT]->SetParam ( "fmax", 0, wheel_torque );
-  joints_[RIGHT]->SetParam ( "fmax", 0, wheel_torque );
+  joints_[LEFT_FRONT]->SetParam ( "fmax", 0, wheel_torque );
+  joints_[RIGHT_FRONT]->SetParam ( "fmax", 0, wheel_torque );
+  joints_[LEFT_BACK]->SetParam ( "fmax", 0, wheel_torque );
+  joints_[RIGHT_BACK]->SetParam ( "fmax", 0, wheel_torque );
 }
  
 void GazeboRosDiffDrive::publishWheelJointState()
