@@ -3,9 +3,9 @@
 
 - The velodyne is a 3-D LiDAR.
 
-- Your need install ros melodic package.
+* Your need install ros melodic package.
 
-``` bash
+  - ``` bash
 $ sudo apt install libgazebo8-dev
 ```
 
