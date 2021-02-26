@@ -9,44 +9,28 @@
 
   ``` $ sudo yum install gazebo-devel ```
 
-- create build dir in velodyne_plugin.
+- Create build dir in velodyne_plugin.
 
-``` bash
-$ cd velodyne_plugin
-```
-
-``` bash
-$ mkdir build
-```
+  ``` $ cd velodyne_plugin ```
+  
+  ``` $ mkdir build ```
 
 - Compile the plugin.
 
-``` bash
-$ cmake ..
-```
+  ``` $ cmake .. ```
+  
+  ``` $ make ```
 
-``` bash
-$ make
-```
+- Add plugin build library position to written into ~/.bashrc file.
 
-- add plugin build library position to written into ~/.bashrc file.
+  ``` $ sudo gedit ~/.bashrc ```
 
-``` bash
-$ sudo gedit ~/.bashrc
-```
+  ``` Add content "export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:~/velodyne_plugin/build" into ~/.bashrc file. ```
 
-``` bash
-Add content "export LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:~/velodyne_plugin/build" into ~/.bashrc file.
-```
+- Run velodyne_plugin simulation under Gazebo.
 
-- run velodyne_plugin simulation under Gazebo.
+  ``` $ gazebo --verbose ../velodyne.world ```
 
-``` bash
-$ gazebo --verbose ../velodyne.world
-```
+- Run velodyne_plugin z-axis rotation velocity command.
 
-- run velodyne_plugin z-axis rotation velocity command.
-
-``` bash
-$ ./vel 2
-```
+  ``` $ ./vel 2 ```
