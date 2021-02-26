@@ -5,7 +5,7 @@
 
 * Your need install ros melodic package.
 
-  - ``` bash $ sudo apt install libgazebo8-dev ```
+  - ``` $ sudo apt install libgazebo8-dev ```
 
 ``` bash
 $ sudo yum install gazebo-devel
